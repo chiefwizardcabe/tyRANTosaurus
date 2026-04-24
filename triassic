@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tyRANTosaurus • Safe Rants</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    .dino { font-size: 3rem; }
+    .heart-btn { transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+    .heart-btn:hover { transform: scale(1.15); }
+    .heart-btn:active { transform: scale(0.95); }
+  </style>
+</head>
+<body class="bg-emerald-950 text-emerald-100 min-h-screen">
+  <div class="max-w-2xl mx-auto p-6">
+    <div class="flex items-center gap-4 mb-8 border-b border-emerald-800 pb-6">
+      <span class="dino">🦖</span>
+      <div>
+        <h1 class="text-4xl font-bold tracking-tight">tyRANTosaurus</h1>
+        <p class="text-emerald-300">Anonymous. Supported. Nothing else. <span class="text-xs bg-emerald-800 px-2 py-px rounded">LIVE</span></p>
+      </div>
+    </div>
+
+    <div class="prose prose-invert mb-8">
+      <p class="text-lg">Safe space to vent. No comments. No echo chambers. Just support.</p>
+    </div>
+
+    <!-- Post form -->
+    <div class="bg-emerald-900 rounded-2xl p-6 mb-8">
+      <h2 class="text-xl font-semibold mb-4 flex items-center gap-2"><i class="fa-solid fa-feather"></i> What’s on your mind?</h2>
+      <textarea id="postText" rows="4" class="w-full bg-emerald-950 border border-emerald-700 rounded-xl p-4 text-emerald-100 placeholder-emerald-400 focus:outline-none focus:border-emerald-400" placeholder="Rant here... (anonymous by default)"></textarea>
+      <div class="flex justify-between items-center mt-4">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" id="useName" class="accent-emerald-400">
+          <span>Use optional nickname</span>
+        </label>
+        <button onclick="submitPost()" class="bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-semibold px-8 py-3 rounded-2xl flex items-center gap-2 transition">
+          <i class="fa-solid fa-paper-plane"></i> POST
+        </button>
+      </div>
+    </div>
+
+    <!-- Feed -->
+    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2"><i class="fa-solid fa-scroll"></i> Live Rants <span id="live-dot" class="text-emerald-400 animate-pulse">●</span></h2>
+    <div id="feed" class="space-y-6"></div>
+  </div>
+
+  <script>
+    // ←←←←← REPLACE THESE TWO LINES WITH YOUR SUPABASE KEYS ↓↓↓↓↓
+    const SUPABASE_URL = 'https://YOUR_PROJECT_REF.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJ...your-anon-key-here';
+
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let posts = [];
+
+    async function fetchPosts() {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('timestamp', { ascending: false });
+      if (error) console.error(error);
+      else {
+        posts = data || [];
+        renderFeed();
+      }
+    }
+
+    function renderFeed() {
+      const feedEl = document.getElementById('feed');
+      feedEl.innerHTML = posts.map(post => `
+        <div class="bg-emerald-900 rounded-2xl p-6">
+          <div class="flex justify-between text-xs text-emerald-400 mb-2">
+            <span>${post.author || 'Anonymous'}</span>
+            <span>${new Date(post.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+          </div>
+          <p class="text-emerald-100 leading-relaxed mb-4">${post.text}</p>
+          <div class="flex items-center gap-4 text-sm">
+            <button onclick="giveSupport(${post.id})" 
+                    class="heart-btn flex items-center gap-2 hover:text-emerald-300 transition group"
+                    title="Support this rant 🦖❤️">
+              <span class="text-4xl transition-transform group-active:scale-110">🦖❤️</span>
+              <span id="support-count-${post.id}" class="font-semibold text-emerald-100">${post.heard}</span>
+            </button>
+            <button onclick="reportPost(${post.id})" 
+                    class="text-red-400 hover:text-red-300 flex items-center gap-1">
+              <i class="fa-solid fa-flag"></i> Flag
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function submitPost() {
+      const text = document.getElementById('postText').value.trim();
+      if (!text) return;
+
+      const useName = document.getElementById('useName').checked;
+      let author = 'Anonymous';
+      if (useName) {
+        const nick = prompt('Optional nickname? (press cancel for Anonymous)');
+        if (nick) author = nick;
+      }
+
+      const { error } = await supabase
+        .from('posts')
+        .insert([{ text, author, heard: 0 }]);
+
+      if (error) alert('Error posting – check console');
+      else {
+        document.getElementById('postText').value = '';
+        fetchPosts();
+      }
+    }
+
+    window.giveSupport = async function(id) {
+      const { error } = await supabase
+        .from('posts')
+        .update({ heard: supabase.rpc('increment_heard', { row_id: id }) })
+        .eq('id', id);
+      if (!error) fetchPosts();
+    };
+
+    window.reportPost = async function(id) {
+      if (confirm("Flag for moderation?")) {
+        await supabase.from('posts').update({ flagged: true }).eq('id', id);
+        alert("✅ Flagged – in production this notifies moderators.");
+      }
+    };
+
+    function subscribeToPosts() {
+      supabase.channel('posts')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchPosts())
+        .subscribe();
+    }
+
+    // Initial load
+    fetchPosts();
+    subscribeToPosts();
+  </script>
+</body>
+</html>
