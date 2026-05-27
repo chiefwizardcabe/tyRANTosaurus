@@ -112,7 +112,7 @@
 
     // 4. Startup
     document.getElementById('postButton').addEventListener('click', submitPost);
-    fetchPosts(); // initial load
+    fetchPosts();
     supabase.channel('posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchPosts).subscribe();
   </script>
 </body>
