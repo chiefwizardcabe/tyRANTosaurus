@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.supabase.co;">
+  <title>tyRANTosaurus • Safe Rants</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0A1F1F; color: white; margin: 0; padding: 20px; }
+    .container { max-width: 640px; margin: 0 auto; }
+    .card { background: #112B2B; border-radius: 24px; padding: 24px; margin-bottom: 24px; }
+    button { background: #10B981; color: #0A1F1F; border: none; padding: 12px 24px; border-radius: 9999px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #34D399; }
+    .rant { background: #112B2B; border-radius: 20px; padding: 20px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+      <span style="font-size:48px;">🦖</span>
+      <div>
+        <h1 style="font-size:36px; margin:0;">tyRANTosaurus</h1>
+        <p style="color:#34D399; margin:0;">Anonymous. Supported. Nothing else. LIVE</p>
+      </div>
+    </div>
+
+    <p style="color:#34D399; text-align:center; margin-bottom:24px;">Safe space to vent. No comments. No echo chambers. Just support.</p>
+
+    <div class="card">
+      <h2 style="margin-top:0;">What’s on your mind?</h2>
+      <textarea id="postText" rows="4" style="width:100%; background:#0A1F1F; border:2px solid #34D399; border-radius:16px; padding:16px; color:white; resize:none;" placeholder="Rant & roar away"></textarea>
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="useName" style="accent-color:#10B981;">
+          <span>Use optional nickname</span>
+        </label>
+        <button id="postButton" style="font-size:18px;">💌 POST</button>
+      </div>
+    </div>
+
+    <h2 style="margin-bottom:16px;">Live Rants</h2>
+    <div id="feed" style="display:flex; flex-direction:column; gap:16px;"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    console.log('✅ tyRANTosaurus FINAL v5 — single client, chronological order');
+
+    // 1. Client created ONCE
+    const SUPABASE_URL = 'https://wppxqwsdjghfynwmhsng.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_WhhS0QtETiAonyEvfGI-JQ_UDGnFgqs';
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 2. Variables
+    let posts = [];
+
+    // 3. Functions
+    async function fetchPosts() {
+      console.log('Fetching posts from Supabase...');
+      const { data, error } = await supabase.from('posts').select('*').order('timestamp', { ascending: false });
+      if (error) console.error('Fetch error:', error);
+      else {
+        posts = data || [];
+        renderFeed();
+      }
+    }
+
+    function renderFeed() {
+      const feed = document.getElementById('feed');
+      feed.innerHTML = posts.map(p => `
+        <div class="rant">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:#34D399; margin-bottom:8px;">
+            <span>${p.author || 'Anonymous'}</span>
+            <span>${new Date(p.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+          </div>
+          <p style="margin:0 0 16px 0; line-height:1.5;">${p.text}</p>
+          <button onclick="giveSupport('${p.id}')" style="display:flex; align-items:center; gap:8px; background:none; border:none; color:#34D399; font-size:28px; cursor:pointer;">
+            🦖❤️ <span id="count-${p.id}" style="font-size:28px; font-weight:600;">${p.heard}</span>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    window.submitPost = async function() {
+      const text = document.getElementById('postText').value.trim();
+      if (!text) return;
+
+      let author = 'Anonymous';
+      if (document.getElementById('useName').checked) {
+        const nick = prompt('Optional nickname? (cancel for Anonymous)');
+        if (nick) author = nick;
+      }
+
+      const { error } = await supabase.from('posts').insert([{ text, author, heard: 0 }]);
+      if (error) {
+        console.error('Insert error:', error);
+        alert('Error posting: ' + error.message);
+      } else {
+        document.getElementById('postText').value = '';
+        fetchPosts();
+      }
+    };
+
+    window.giveSupport = async function(id) {
+      const { data: current } = await supabase.from('posts').select('heard').eq('id', id).single();
+      if (current) {
+        await supabase.from('posts').update({ heard: current.heard + 1 }).eq('id', id);
+        fetchPosts();
+      }
+    };
+
+    // 4. Startup
+    document.getElementById('postButton').addEventListener('click', submitPost);
+    fetchPosts();
+    supabase.channel('posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchPosts).subscribe();
+  </script>
+</body>
+</html>
