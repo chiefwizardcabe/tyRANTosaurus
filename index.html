@@ -35,7 +35,7 @@
           <input type="checkbox" id="useName" style="accent-color:#10B981;">
           <span>Use optional nickname</span>
         </label>
-        <button id="postButton" onclick="submitPost()" style="font-size:18px;">💌 POST</button>
+        <button id="postButton" style="font-size:18px;">💌 POST</button>
       </div>
     </div>
 
@@ -45,16 +45,19 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    console.log('✅ tyRANTosaurus FINAL v6 — inline onclick + heavy debug');
+    console.log('✅ tyRANTosaurus FINAL v6 — single supabase client, chronological order');
 
+    // 1. Client created ONCE
     const SUPABASE_URL = 'https://wppxqwsdjghfynwmhsng.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_WhhS0QtETiAonyEvfGI-JQ_UDGnFgqs';
     const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // 2. Variables
     let posts = [];
 
+    // 3. Functions
     async function fetchPosts() {
-      console.log('Fetching posts...');
+      console.log('Fetching posts from Supabase...');
       const { data, error } = await supabase.from('posts').select('*').order('timestamp', { ascending: false });
       if (error) console.error('Fetch error:', error);
       else {
@@ -80,12 +83,8 @@
     }
 
     window.submitPost = async function() {
-      console.log('submitPost called!');
       const text = document.getElementById('postText').value.trim();
-      if (!text) {
-        console.log('No text entered');
-        return;
-      }
+      if (!text) return;
 
       let author = 'Anonymous';
       if (document.getElementById('useName').checked) {
@@ -94,19 +93,19 @@
       }
 
       console.log('Attempting insert:', { text, author });
+
       const { error } = await supabase.from('posts').insert([{ text, author, heard: 0 }]);
       if (error) {
         console.error('Insert error:', error);
         alert('Error posting: ' + error.message);
       } else {
-        console.log('Insert successful!');
+        console.log('✅ Post inserted successfully!');
         document.getElementById('postText').value = '';
         fetchPosts();
       }
     };
 
     window.giveSupport = async function(id) {
-      console.log('giveSupport called for id:', id);
       const { data: current } = await supabase.from('posts').select('heard').eq('id', id).single();
       if (current) {
         await supabase.from('posts').update({ heard: current.heard + 1 }).eq('id', id);
@@ -114,7 +113,8 @@
       }
     };
 
-    // Initial load
+    // 4. Startup
+    document.getElementById('postButton').addEventListener('click', submitPost);
     fetchPosts();
     supabase.channel('posts').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchPosts).subscribe();
   </script>
